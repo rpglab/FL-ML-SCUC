@@ -1,0 +1,144 @@
+## Author: Arun Ramesh, University of Houston. https://rpglab.github.io/people/Arun-Venkatesh-Ramesh/
+#
+## Source webpage: https://rpglab.github.io/resources/FL-ML-R-SCUC_Python/
+#
+## If you use any codes/data here for your work, please cite the following paper: 
+#       Arun Venkatesh Ramesh and Xingpeng Li, “Feasibility Layer Aided Machine Learning Approach for Day-Ahead Operations”, 
+#       IEEE Transactions on Power Systems, Apr. 2023.
+
+reset;
+printf "\n\n\n##############  Extensive Formulation SCUC Program Starts Here ##############\n\n";
+
+model OriginalFormulationStochastic.mod;
+
+#data dataFile14BusAll.dat;
+data dataFile24BusAll_3Scn.dat;
+#data dataFile24BusAll_5Scn.dat;
+#data dataFile24BusAll_10Scn.dat;
+#data dataFile73BusAll.dat;
+
+option solver gurobi;
+option gurobi_options('mipgap=0.01 timelim=150000 bestbound 1');
+option show_stats 1;
+option randseed 1;
+
+# define problems
+problem Extensive: bus_angle, line_flow, gen_supply, reserve, Ugt, Vgt,
+                PGen1, unitReserve2, unitReserve1, systemReserve, 
+				HR_RampUP, HR_RampDN, HR_RampUP2, HR_RampDN2, 
+				FacetUP, FacetUP2, FacetDN, FacetDN2, SUSD, SUSD2, 
+				Line_FlowEq1, Thermal2, Thermal1,
+				PowerBal,
+				slack,
+			    M_COST;			    
+			    
+			    
+#Choose busses with lot of generators to affect the output
+let WF_bus[1]	:=	2;
+let WF_bus[2]	:=	15;
+let WF_bus[3]	:=	22;
+
+let nT			:=	24;
+let wfPMul 		:=  1;
+
+param allprdsample;
+param baseDInc;
+
+let allprdsample := 1;
+let baseDInc := 0;
+
+param Bus_Pd_SCN1{BUS,LOAD};
+param Bus_Pd_SCN2{BUS,LOAD};
+param Bus_Pd_SCN3{BUS,LOAD};
+
+option print_separator ",";
+repeat 
+{
+	if allprdsample >600 then let wfPMul := 2;
+	if allprdsample >1200 then let wfPMul := 3;
+	
+	let baseDInc := Uniform(-10,10); 
+	for {k in BUS, t in LOAD}
+	{
+		let Bus_Pd[k,t] := (load_pcnt[t]+ baseDInc + Uniform(-5,5))*bus_Pd[k]/MBase; 
+	};
+	
+	for {w in WF, t in LOAD, s in SCN}
+	{
+		let PgWndFrmRnd[w,t,s] := (PgWndFrm[w,t,s] + baseDInc + Uniform(-5,5));
+	};
+	
+	for {t in LOAD, s in SCN}
+	{
+		for {n in BUS}
+		{
+			let bus_angle[n,t,s] := 0;
+		}
+		for {j in BRANCH}
+		{
+			let line_flow[j,t,s] := 0;
+		}
+		for { g in GEND}
+		{
+			let Ugt[g,t] := 0;
+			let Vgt[g,t] := 0;
+			let gen_supply[g,t,s] := 0;
+			let reserve[g,t,s] := 0;
+		}
+	}
+
+	solve Extensive;
+	
+	if solve_result_num == 0 || solve_result_num == 2 then 
+	{
+	
+		printf "%s, %d, %f, %f\n", solve_result, solve_result_num, M_COST, _solve_elapsed_time >Base24_Renewable.csv;
+		#display M_COST.message>BaseMsg24_Renewable.txt;
+		#if solve_result_num == 0 || solve_result_num == 2 then display allprdsample,((M_COST - M_COST.bestbound)/M_COST) >BaseGap24_Renewable.csv;
+		
+		#for 24 periods
+		print {t in LOAD, g in GEND } Ugt[g,t] >commitment24Bus24Prd_Renewable.txt;
+		print {t in LOAD, n in BUS} Bus_Pd[n,t] >demand24Bus24Prd_Renewable.txt;
+		
+		for {n in BUS, t in LOAD} 
+		{
+			let Bus_Pd_SCN1[n,t] := Bus_Pd[n,t];
+			let Bus_Pd_SCN2[n,t] := Bus_Pd[n,t];
+			let Bus_Pd_SCN3[n,t] := Bus_Pd[n,t];
+		}
+		for {t in LOAD} 
+		{
+			for {w in WF}
+			{
+				let Bus_Pd_SCN1[WF_bus[w],t] := Bus_Pd_SCN1[WF_bus[w],t] - wfPMul*PgWndFrmRnd[w,t,1];
+				let Bus_Pd_SCN2[WF_bus[w],t] := Bus_Pd_SCN2[WF_bus[w],t] - wfPMul*PgWndFrmRnd[w,t,2];
+				let Bus_Pd_SCN3[WF_bus[w],t] := Bus_Pd_SCN3[WF_bus[w],t] - wfPMul*PgWndFrmRnd[w,t,3];
+			}
+		}
+		
+		print {t in LOAD, n in BUS} Bus_Pd_SCN1[n,t] >demand24Bus24Prd_Renewable_Scn1.txt;
+		print {t in LOAD, n in BUS} Bus_Pd_SCN2[n,t] >demand24Bus24Prd_Renewable_Scn2.txt;
+		print {t in LOAD, n in BUS} Bus_Pd_SCN3[n,t] >demand24Bus24Prd_Renewable_Scn3.txt;
+		
+		print {t in LOAD, g in GEND } Vgt[g,t] >startup24Bus24Prd_Renewable.txt;
+		#print {t in LOAD, k in BRANCH} line_flow[k,t] >flows24Bus24Prd_Renewable.txt;
+		#print {t in LOAD, g in GEND} gen_supply[g,t] >dispatch24Bus24Prd_Renewable.txt;
+		#print {t in LOAD, g in GEND} reserve[g,t] >reserve24Bus24Prd_Renewable.txt;
+		#print {t in LOAD, n in BUS} bus_angle[n,t] >bangle24Bus24Prd_Renewable.txt;
+		#display M_COST,solve_result_num,solve_result >cost24Bus24Prd_Renewable.txt;
+		#print {t in LOAD, k in BRANCH} (abs(line_flow[k,t]) - branch_rateA[k]) >congestion24Bus24Prd_Renewable.txt;
+		#display M_COST.message>objective24BusMsg_Renewable.txt;
+	}
+	
+	
+	let allprdsample := allprdsample + 1;
+	
+	
+	if allprdsample = 1701 then
+	{
+		break;
+	}
+}
+
+display _total_solve_elapsed_time;
+

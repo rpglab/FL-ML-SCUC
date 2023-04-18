@@ -1,0 +1,166 @@
+## Author: Arun Ramesh, University of Houston. https://rpglab.github.io/people/Arun-Venkatesh-Ramesh/
+#
+## Source webpage: https://rpglab.github.io/resources/FL-ML-R-SCUC_Python/
+#
+## If you use any codes/data here for your work, please cite the following paper: 
+#       Arun Venkatesh Ramesh and Xingpeng Li, “Feasibility Layer Aided Machine Learning Approach for Day-Ahead Operations”, 
+#       IEEE Transactions on Power Systems, Apr. 2023.
+
+reset;
+printf "\n\n\n##############  Extensive Formulation SCUC Program Starts Here ##############\n\n";
+
+model scuc_OriginalFormulation24Period.mod;
+#data dataFile24BusAll.dat;
+#data dataFile73BusAll.dat;
+#data dataFile300BusAll.dat;
+#data dataFilePolishAll.dat;
+#data dataFile118BusAllV2.dat;
+#data dataFile118BusAll_fullGenList.dat;
+data dataFile118BusAll_newGenInfoWithMinUpNMinDn.dat;
+#data dataFilePolishAll_newGenInfoNewLD.dat;
+
+option solver gurobi;
+option gurobi_options('mipgap=0.01 timelim=2500 bestbound 1');
+option show_stats 1;
+option presolve 0;
+suffix bestbound OUT;
+
+# define problems
+  problem Extensive: bus_angle, line_flow, gen_supply, reserve, Ugt, Vgt,
+                PGen1, unitReserve2, unitReserve1, systemReserve, 
+				HR_RampUP, HR_RampDN, HR_RampUP2, HR_RampDN2, 
+				FacetUP, FacetUP2, FacetDN, FacetDN2, SUSD, SUSD2, 
+				Line_FlowEq1, Thermal2, Thermal1,
+				PowerBal,
+				slack,
+			    M_COST;
+
+#param tDemand;
+#let tDemand := 0;
+
+let nT := 24;
+
+param allprdsample;
+param baseDInc;
+
+let allprdsample := 1;
+let baseDInc := 0;
+
+/*
+#all four periods
+printf"sample,nD1_1,nD2_1,nD3_1,nD4_1,nD5_1,nD6_1,nD7_1,nD8_1,nD9_1,nD10_1,nD11_1,nD12_1,nD13_1,nD14_1,nD15_1,nD16_1,nD17_1,nD18_1,nD19_1,nD20_1,nD21_1,nD22_1,nD23_1,nD24_1,nD1_2,nD2_2,nD3_2,nD4_2,nD5_2,nD6_2,nD7_2,nD8_2,nD9_2,nD10_2,nD11_2,nD12_2,nD13_2,nD14_2,nD15_2,nD16_2,nD17_2,nD18_2,nD19_2,nD20_2,nD21_2,nD22_2,nD23_2,nD24_2,nD1_3,nD2_3,nD3_3,nD4_3,nD5_3,nD6_3,nD7_3,nD8_3,nD9_3,nD10_3,nD11_3,nD12_3,nD13_3,nD14_3,nD15_3,nD16_3,nD17_3,nD18_3,nD19_3,nD20_3,nD21_3,nD22_3,nD23_3,nD24_3,nD1_4,nD2_4,nD3_4,nD4_4,nD5_4,nD6_4,nD7_4,nD8_4,nD9_4,nD10_4,nD11_4,nD12_4,nD13_4,nD14_4,nD15_4,nD16_4,nD17_4,nD18_4,nD19_4,nD20_4,nD21_4,nD22_4,nD23_4,nD24_4\n"> demand24Bus4Prd.txt;
+printf"sample,Ug1_1,Ug2_1,Ug3_1,Ug4_1,Ug5_1,Ug6_1,Ug7_1,Ug8_1,Ug9_1,Ug10_1,Ug11_1,Ug12_1,Ug13_1,Ug14_1,Ug15_1,Ug16_1,Ug17_1,Ug18_1,Ug19_1,Ug20_1,Ug21_1,Ug22_1,Ug23_1,Ug24_1,Ug25_1,Ug26_1,Ug27_1,Ug28_1,Ug29_1,Ug30_1,Ug31_1,Ug32_1,Ug33_1,Ug1_2,Ug2_2,Ug3_2,Ug4_2,Ug5_2,Ug6_2,Ug7_2,Ug8_2,Ug9_2,Ug10_2,Ug11_2,Ug12_2,Ug13_2,Ug14_2,Ug15_2,Ug16_2,Ug17_2,Ug18_2,Ug19_2,Ug20_2,Ug21_2,Ug22_2,Ug23_2,Ug24_2,Ug25_2,Ug26_2,Ug27_2,Ug28_2,Ug29_2,Ug30_2,Ug31_2,Ug32_2,Ug33_2,Ug1_3,Ug2_3,Ug3_3,Ug4_3,Ug5_3,Ug6_3,Ug7_3,Ug8_3,Ug9_3,Ug10_3,Ug11_3,Ug12_3,Ug13_3,Ug14_3,Ug15_3,Ug16_3,Ug17_3,Ug18_3,Ug19_3,Ug20_3,Ug21_3,Ug22_3,Ug23_3,Ug24_3,Ug25_3,Ug26_3,Ug27_3,Ug28_3,Ug29_3,Ug30_3,Ug31_3,Ug32_3,Ug33_3,Ug1_4,Ug2_4,Ug3_4,Ug4_4,Ug5_4,Ug6_4,Ug7_4,Ug8_4,Ug9_4,Ug10_4,Ug11_4,Ug12_4,Ug13_4,Ug14_4,Ug15_4,Ug16_4,Ug17_4,Ug18_4,Ug19_4,Ug20_4,Ug21_4,Ug22_4,Ug23_4,Ug24_4,Ug25_4,Ug26_4,Ug27_4,Ug28_4,Ug29_4,Ug30_4,Ug31_4,Ug32_4,Ug33_4 \n"> commitment24Bus4Prd.txt;
+
+#single period
+printf"sample,nD1_1,nD2_1,nD3_1,nD4_1,nD5_1,nD6_1,nD7_1,nD8_1,nD9_1,nD10_1,nD11_1,nD12_1,nD13_1,nD14_1,nD15_1,nD16_1,nD17_1,nD18_1,nD19_1,nD20_1,nD21_1,nD22_1,nD23_1,nD24_1\n"> demand24Bus1Prd.txt;
+printf"sample,Ug1_1,Ug2_1,Ug3_1,Ug4_1,Ug5_1,Ug6_1,Ug7_1,Ug8_1,Ug9_1,Ug10_1,Ug11_1,Ug12_1,Ug13_1,Ug14_1,Ug15_1,Ug16_1,Ug17_1,Ug18_1,Ug19_1,Ug20_1,Ug21_1,Ug22_1,Ug23_1,Ug24_1,Ug25_1,Ug26_1,Ug27_1,Ug28_1,Ug29_1,Ug30_1,Ug31_1,Ug32_1,Ug33_1\n"> commitment24Bus1Prd.txt;
+*/
+
+#PreviousPeriod
+#printf"sample,nD1_prev,nD2_prev,nD3_prev,nD4_prev,nD5_prev,nD6_prev,nD7_prev,nD8_prev,nD9_prev,nD10_prev,nD11_prev,nD12_prev,nD13_prev,nD14_prev,nD15_prev,nD16_prev,nD17_prev,nD18_prev,nD19_prev,nD20_prev,nD21_prev,nD22_prev,nD23_prev,nD24_prev,Ug1_prev,Ug2_prev,Ug3_prev,Ug4_prev,Ug5_prev,Ug6_prev,Ug7_prev,Ug8_prev,Ug9_prev,Ug10_prev,Ug11_prev,Ug12_prev,Ug13_prev,Ug14_prev,Ug15_prev,Ug16_prev,Ug17_prev,Ug18_prev,Ug19_prev,Ug20_prev,Ug21_prev,Ug22_prev,Ug23_prev,Ug24_prev,Ug25_prev,Ug26_prev,Ug27_prev,Ug28_prev,Ug29_prev,Ug30_prev,Ug31_prev,Ug32_prev,Ug33_prev,nD1_cur,nD2_cur,nD3_cur,nD4_cur,nD5_cur,nD6_cur,nD7_cur,nD8_cur,nD9_cur,nD10_cur,nD11_cur,nD12_cur,nD13_cur,nD14_cur,nD15_cur,nD16_cur,nD17_cur,nD18_cur,nD19_cur,nD20_cur,nD21_cur,nD22_cur,nD23_cur,nD24_cur,Ug1_cur,Ug2_cur,Ug3_cur,Ug4_cur,Ug5_cur,Ug6_cur,Ug7_cur,Ug8_cur,Ug9_cur,Ug10_cur,Ug11_cur,Ug12_cur,Ug13_cur,Ug14_cur,Ug15_cur,Ug16_cur,Ug17_cur,Ug18_cur,Ug19_cur,Ug20_cur,Ug21_cur,Ug22_cur,Ug23_cur,Ug24_cur,Ug25_cur,Ug26_cur,Ug27_cur,Ug28_cur,Ug29_cur,Ug30_cur,Ug31_cur,Ug32_cur,Ug33_cur \n"> demandcommit24BusPrevPrd.txt;
+option print_separator ",";
+repeat 
+{
+
+	if allprdsample <=900 then
+	{
+		let baseDInc := Uniform(-20,20); #For polish changed from 20 to 15
+		for {k in BUS, t in LOAD}
+		{
+			let Bus_Pd[k,t] := (load_pcnt[t]+ baseDInc)*bus_Pd[k]/MBase; 
+		};
+	}
+	/*else if allprdsample > 500 && allprdsample <= 1000 then
+	{
+		
+		for {k in BUS, t in LOAD}
+		{
+			let Bus_Pd[k,t] := (load_pcnt[t] + Uniform(-15,15))*bus_Pd[k]/MBase; # For polish changed from 15% to 10
+		};
+	}*/
+	else
+	{
+		let baseDInc := Uniform(-10,10); #changed from 20 to 15
+		for {k in BUS, t in LOAD}
+		{
+			let Bus_Pd[k,t] := (load_pcnt[t]+ baseDInc + Uniform(-2,2))*bus_Pd[k]/MBase; #For polish changed from 15% to 10
+		};
+	}
+	
+	/*for {t in LOAD}
+	{
+		for {n in BUS}
+		{
+			let bus_angle[n,t] := 0;
+		}
+		for {j in BRANCH}
+		{
+			let line_flow[j,t] := 0;
+		}
+		for { g in GEND}
+		{
+			let Ugt[g,t] := 0;
+			let Vgt[g,t] := 0;
+			let gen_supply[g,t] := 0;
+			let reserve[g,t] := 0;
+		}
+	}*/
+	
+	solve Extensive;
+	
+	if solve_result_num == 0 || solve_result_num == 2 then 
+	{
+	
+		printf "%s, %d, %f, %f\n", solve_result, solve_result_num, M_COST, _solve_elapsed_time >Base118BusWBCorr.csv;
+		display M_COST.message>BaseMsg118BusWBCorr.txt;
+		#if solve_result_num == 0 || solve_result_num == 2 then display allprdsample,((M_COST - M_COST.bestbound)/M_COST) >BaseGapPolish.csv;
+		
+		#for 24 periods
+		print {t in LOAD, g in GEND } Ugt[g,t] >commitment118BusWBCorr24Prd.txt;
+		print {t in LOAD, n in BUS} Bus_Pd[n,t] >demand118BusWBCorr24Prd.txt;
+		print {t in LOAD, g in GEND } Vgt[g,t] >startup118BusWBCorr24Prd.txt;
+		print {t in LOAD, k in BRANCH} line_flow[k,t] >flows118BusWBCorr24Prd.txt;
+		print {t in LOAD, g in GEND} gen_supply[g,t] >dispatch118BusWBCorr24Prd.txt;
+		print {t in LOAD, g in GEND} reserve[g,t] >reserve118BusWBCorr24Prd.txt;
+		print {t in LOAD, n in BUS} bus_angle[n,t] >bangle118BusWBCorr24Prd.txt;
+		display M_COST,solve_result_num,solve_result >cost118BusWBCorr24Prd.txt;
+		print {t in LOAD, k in BRANCH} (abs(line_flow[k,t]) - branch_rateA[k]) >congestion118BusWBCorr24Prd.txt;
+	}
+	
+	/*
+	#single Period data file
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Bus_Pd[1,1],Bus_Pd[2,1],Bus_Pd[3,1],Bus_Pd[4,1],Bus_Pd[5,1],Bus_Pd[6,1],Bus_Pd[7,1],Bus_Pd[8,1],Bus_Pd[9,1],Bus_Pd[10,1],Bus_Pd[11,1],Bus_Pd[12,1],Bus_Pd[13,1],Bus_Pd[14,1],Bus_Pd[15,1],Bus_Pd[16,1],Bus_Pd[17,1],Bus_Pd[18,1],Bus_Pd[19,1],Bus_Pd[20,1],Bus_Pd[21,1],Bus_Pd[22,1],Bus_Pd[23,1],Bus_Pd[24,1]> demand24Bus1Prd.txt;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Ugt[1,1],Ugt[2,1],Ugt[3,1],Ugt[4,1],Ugt[5,1],Ugt[6,1],Ugt[7,1],Ugt[8,1],Ugt[9,1],Ugt[10,1],Ugt[11,1],Ugt[12,1],Ugt[13,1],Ugt[14,1],Ugt[15,1],Ugt[16,1],Ugt[17,1],Ugt[18,1],Ugt[19,1],Ugt[20,1],Ugt[21,1],Ugt[22,1],Ugt[23,1],Ugt[24,1],Ugt[25,1],Ugt[26,1],Ugt[27,1],Ugt[28,1],Ugt[29,1],Ugt[30,1],Ugt[31,1],Ugt[32,1],Ugt[33,1]> commitment24Bus1Prd.txt;
+	let oneprdsample := oneprdsample + 1;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Bus_Pd[1,2],Bus_Pd[2,2],Bus_Pd[3,2],Bus_Pd[4,2],Bus_Pd[5,2],Bus_Pd[6,2],Bus_Pd[7,2],Bus_Pd[8,2],Bus_Pd[9,2],Bus_Pd[10,2],Bus_Pd[11,2],Bus_Pd[12,2],Bus_Pd[13,2],Bus_Pd[14,2],Bus_Pd[15,2],Bus_Pd[16,2],Bus_Pd[17,2],Bus_Pd[18,2],Bus_Pd[19,2],Bus_Pd[20,2],Bus_Pd[21,2],Bus_Pd[22,2],Bus_Pd[23,2],Bus_Pd[24,2]> demand24Bus1Prd.txt;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Ugt[1,2],Ugt[2,2],Ugt[3,2],Ugt[4,2],Ugt[5,2],Ugt[6,2],Ugt[7,2],Ugt[8,2],Ugt[9,2],Ugt[10,2],Ugt[11,2],Ugt[12,2],Ugt[13,2],Ugt[14,2],Ugt[15,2],Ugt[16,2],Ugt[17,2],Ugt[18,2],Ugt[19,2],Ugt[20,2],Ugt[21,2],Ugt[22,2],Ugt[23,2],Ugt[24,2],Ugt[25,2],Ugt[26,2],Ugt[27,2],Ugt[28,2],Ugt[29,2],Ugt[30,2],Ugt[31,2],Ugt[32,2],Ugt[33,2]> commitment24Bus1Prd.txt;
+	let oneprdsample := oneprdsample + 1;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Bus_Pd[1,3],Bus_Pd[2,3],Bus_Pd[3,3],Bus_Pd[4,3],Bus_Pd[5,3],Bus_Pd[6,3],Bus_Pd[7,3],Bus_Pd[8,3],Bus_Pd[9,3],Bus_Pd[10,3],Bus_Pd[11,3],Bus_Pd[12,3],Bus_Pd[13,3],Bus_Pd[14,3],Bus_Pd[15,3],Bus_Pd[16,3],Bus_Pd[17,3],Bus_Pd[18,3],Bus_Pd[19,3],Bus_Pd[20,3],Bus_Pd[21,3],Bus_Pd[22,3],Bus_Pd[23,3],Bus_Pd[24,3]> demand24Bus1Prd.txt;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Ugt[1,3],Ugt[2,3],Ugt[3,3],Ugt[4,3],Ugt[5,3],Ugt[6,3],Ugt[7,3],Ugt[8,3],Ugt[9,3],Ugt[10,3],Ugt[11,3],Ugt[12,3],Ugt[13,3],Ugt[14,3],Ugt[15,3],Ugt[16,3],Ugt[17,3],Ugt[18,3],Ugt[19,3],Ugt[20,3],Ugt[21,3],Ugt[22,3],Ugt[23,3],Ugt[24,3],Ugt[25,3],Ugt[26,3],Ugt[27,3],Ugt[28,3],Ugt[29,3],Ugt[30,3],Ugt[31,3],Ugt[32,3],Ugt[33,3]> commitment24Bus1Prd.txt;
+	let oneprdsample := oneprdsample + 1;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Bus_Pd[1,4],Bus_Pd[2,4],Bus_Pd[3,4],Bus_Pd[4,4],Bus_Pd[5,4],Bus_Pd[6,4],Bus_Pd[7,4],Bus_Pd[8,4],Bus_Pd[9,4],Bus_Pd[10,4],Bus_Pd[11,4],Bus_Pd[12,4],Bus_Pd[13,4],Bus_Pd[14,4],Bus_Pd[15,4],Bus_Pd[16,4],Bus_Pd[17,4],Bus_Pd[18,4],Bus_Pd[19,4],Bus_Pd[20,4],Bus_Pd[21,4],Bus_Pd[22,4],Bus_Pd[23,4],Bus_Pd[24,4]> demand24Bus1Prd.txt;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", oneprdsample,Ugt[1,4],Ugt[2,4],Ugt[3,4],Ugt[4,4],Ugt[5,4],Ugt[6,4],Ugt[7,4],Ugt[8,4],Ugt[9,4],Ugt[10,4],Ugt[11,4],Ugt[12,4],Ugt[13,4],Ugt[14,4],Ugt[15,4],Ugt[16,4],Ugt[17,4],Ugt[18,4],Ugt[19,4],Ugt[20,4],Ugt[21,4],Ugt[22,4],Ugt[23,4],Ugt[24,4],Ugt[25,4],Ugt[26,4],Ugt[27,4],Ugt[28,4],Ugt[29,4],Ugt[30,4],Ugt[31,4],Ugt[32,4],Ugt[33,4]> commitment24Bus1Prd.txt;
+	let oneprdsample := oneprdsample + 1;
+
+	#all four Period Data
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", allprdsample,Bus_Pd[1,1],Bus_Pd[2,1],Bus_Pd[3,1],Bus_Pd[4,1],Bus_Pd[5,1],Bus_Pd[6,1],Bus_Pd[7,1],Bus_Pd[8,1],Bus_Pd[9,1],Bus_Pd[10,1],Bus_Pd[11,1],Bus_Pd[12,1],Bus_Pd[13,1],Bus_Pd[14,1],Bus_Pd[15,1],Bus_Pd[16,1],Bus_Pd[17,1],Bus_Pd[18,1],Bus_Pd[19,1],Bus_Pd[20,1],Bus_Pd[21,1],Bus_Pd[22,1],Bus_Pd[23,1],Bus_Pd[24,1],Bus_Pd[1,2],Bus_Pd[2,2],Bus_Pd[3,2],Bus_Pd[4,2],Bus_Pd[5,2],Bus_Pd[6,2],Bus_Pd[7,2],Bus_Pd[8,2],Bus_Pd[9,2],Bus_Pd[10,2],Bus_Pd[11,2],Bus_Pd[12,2],Bus_Pd[13,2],Bus_Pd[14,2],Bus_Pd[15,2],Bus_Pd[16,2],Bus_Pd[17,2],Bus_Pd[18,2],Bus_Pd[19,2],Bus_Pd[20,2],Bus_Pd[21,2],Bus_Pd[22,2],Bus_Pd[23,2],Bus_Pd[24,2],Bus_Pd[1,3],Bus_Pd[2,3],Bus_Pd[3,3],Bus_Pd[4,3],Bus_Pd[5,3],Bus_Pd[6,3],Bus_Pd[7,3],Bus_Pd[8,3],Bus_Pd[9,3],Bus_Pd[10,3],Bus_Pd[11,3],Bus_Pd[12,3],Bus_Pd[13,3],Bus_Pd[14,3],Bus_Pd[15,3],Bus_Pd[16,3],Bus_Pd[17,3],Bus_Pd[18,3],Bus_Pd[19,3],Bus_Pd[20,3],Bus_Pd[21,3],Bus_Pd[22,3],Bus_Pd[23,3],Bus_Pd[24,3],Bus_Pd[1,4],Bus_Pd[2,4],Bus_Pd[3,4],Bus_Pd[4,4],Bus_Pd[5,4],Bus_Pd[6,4],Bus_Pd[7,4],Bus_Pd[8,4],Bus_Pd[9,4],Bus_Pd[10,4],Bus_Pd[11,4],Bus_Pd[12,4],Bus_Pd[13,4],Bus_Pd[14,4],Bus_Pd[15,4],Bus_Pd[16,4],Bus_Pd[17,4],Bus_Pd[18,4],Bus_Pd[19,4],Bus_Pd[20,4],Bus_Pd[21,4],Bus_Pd[22,4],Bus_Pd[23,4],Bus_Pd[24,4]> demand24Bus4Prd.txt;
+	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", allprdsample,Ugt[1,1],Ugt[2,1],Ugt[3,1],Ugt[4,1],Ugt[5,1],Ugt[6,1],Ugt[7,1],Ugt[8,1],Ugt[9,1],Ugt[10,1],Ugt[11,1],Ugt[12,1],Ugt[13,1],Ugt[14,1],Ugt[15,1],Ugt[16,1],Ugt[17,1],Ugt[18,1],Ugt[19,1],Ugt[20,1],Ugt[21,1],Ugt[22,1],Ugt[23,1],Ugt[24,1],Ugt[25,1],Ugt[26,1],Ugt[27,1],Ugt[28,1],Ugt[29,1],Ugt[30,1],Ugt[31,1],Ugt[32,1],Ugt[33,1],Ugt[1,2],Ugt[2,2],Ugt[3,2],Ugt[4,2],Ugt[5,2],Ugt[6,2],Ugt[7,2],Ugt[8,2],Ugt[9,2],Ugt[10,2],Ugt[11,2],Ugt[12,2],Ugt[13,2],Ugt[14,2],Ugt[15,2],Ugt[16,2],Ugt[17,2],Ugt[18,2],Ugt[19,2],Ugt[20,2],Ugt[21,2],Ugt[22,2],Ugt[23,2],Ugt[24,2],Ugt[25,2],Ugt[26,2],Ugt[27,2],Ugt[28,2],Ugt[29,2],Ugt[30,2],Ugt[31,2],Ugt[32,2],Ugt[33,2],Ugt[1,3],Ugt[2,3],Ugt[3,3],Ugt[4,3],Ugt[5,3],Ugt[6,3],Ugt[7,3],Ugt[8,3],Ugt[9,3],Ugt[10,3],Ugt[11,3],Ugt[12,3],Ugt[13,3],Ugt[14,3],Ugt[15,3],Ugt[16,3],Ugt[17,3],Ugt[18,3],Ugt[19,3],Ugt[20,3],Ugt[21,3],Ugt[22,3],Ugt[23,3],Ugt[24,3],Ugt[25,3],Ugt[26,3],Ugt[27,3],Ugt[28,3],Ugt[29,3],Ugt[30,3],Ugt[31,3],Ugt[32,3],Ugt[33,3],Ugt[1,4],Ugt[2,4],Ugt[3,4],Ugt[4,4],Ugt[5,4],Ugt[6,4],Ugt[7,4],Ugt[8,4],Ugt[9,4],Ugt[10,4],Ugt[11,4],Ugt[12,4],Ugt[13,4],Ugt[14,4],Ugt[15,4],Ugt[16,4],Ugt[17,4],Ugt[18,4],Ugt[19,4],Ugt[20,4],Ugt[21,4],Ugt[22,4],Ugt[23,4],Ugt[24,4],Ugt[25,4],Ugt[26,4],Ugt[27,4],Ugt[28,4],Ugt[29,4],Ugt[30,4],Ugt[31,4],Ugt[32,4],Ugt[33,4]> commitment24Bus4Prd.txt;
+	*/
+	
+	let allprdsample := allprdsample + 1;
+	
+	
+	##PreviousPeriod data
+#	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d \n",prevprdsample, Bus_Pd[1,1],Bus_Pd[2,1],Bus_Pd[3,1],Bus_Pd[4,1],Bus_Pd[5,1],Bus_Pd[6,1],Bus_Pd[7,1],Bus_Pd[8,1],Bus_Pd[9,1],Bus_Pd[10,1],Bus_Pd[11,1],Bus_Pd[12,1],Bus_Pd[13,1],Bus_Pd[14,1],Bus_Pd[15,1],Bus_Pd[16,1],Bus_Pd[17,1],Bus_Pd[18,1],Bus_Pd[19,1],Bus_Pd[20,1],Bus_Pd[21,1],Bus_Pd[22,1],Bus_Pd[23,1],Bus_Pd[24,1],Ugt[1,1],Ugt[2,1],Ugt[3,1],Ugt[4,1],Ugt[5,1],Ugt[6,1],Ugt[7,1],Ugt[8,1],Ugt[9,1],Ugt[10,1],Ugt[11,1],Ugt[12,1],Ugt[13,1],Ugt[14,1],Ugt[15,1],Ugt[16,1],Ugt[17,1],Ugt[18,1],Ugt[19,1],Ugt[20,1],Ugt[21,1],Ugt[22,1],Ugt[23,1],Ugt[24,1],Ugt[25,1],Ugt[26,1],Ugt[27,1],Ugt[28,1],Ugt[29,1],Ugt[30,1],Ugt[31,1],Ugt[32,1],Ugt[33,1],Bus_Pd[1,2],Bus_Pd[2,2],Bus_Pd[3,2],Bus_Pd[4,2],Bus_Pd[5,2],Bus_Pd[6,2],Bus_Pd[7,2],Bus_Pd[8,2],Bus_Pd[9,2],Bus_Pd[10,2],Bus_Pd[11,2],Bus_Pd[12,2],Bus_Pd[13,2],Bus_Pd[14,2],Bus_Pd[15,2],Bus_Pd[16,2],Bus_Pd[17,2],Bus_Pd[18,2],Bus_Pd[19,2],Bus_Pd[20,2],Bus_Pd[21,2],Bus_Pd[22,2],Bus_Pd[23,2],Bus_Pd[24,2],Ugt[1,2],Ugt[2,2],Ugt[3,2],Ugt[4,2],Ugt[5,2],Ugt[6,2],Ugt[7,2],Ugt[8,2],Ugt[9,2],Ugt[10,2],Ugt[11,2],Ugt[12,2],Ugt[13,2],Ugt[14,2],Ugt[15,2],Ugt[16,2],Ugt[17,2],Ugt[18,2],Ugt[19,2],Ugt[20,2],Ugt[21,2],Ugt[22,2],Ugt[23,2],Ugt[24,2],Ugt[25,2],Ugt[26,2],Ugt[27,2],Ugt[28,2],Ugt[29,2],Ugt[30,2],Ugt[31,2],Ugt[32,2],Ugt[33,2]>demandcommit24BusPrevPrd.txt;
+#	let prevprdsample := prevprdsample + 1;
+#	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d \n",prevprdsample, Bus_Pd[1,2],Bus_Pd[2,2],Bus_Pd[3,2],Bus_Pd[4,2],Bus_Pd[5,2],Bus_Pd[6,2],Bus_Pd[7,2],Bus_Pd[8,2],Bus_Pd[9,2],Bus_Pd[10,2],Bus_Pd[11,2],Bus_Pd[12,2],Bus_Pd[13,2],Bus_Pd[14,2],Bus_Pd[15,2],Bus_Pd[16,2],Bus_Pd[17,2],Bus_Pd[18,2],Bus_Pd[19,2],Bus_Pd[20,2],Bus_Pd[21,2],Bus_Pd[22,2],Bus_Pd[23,2],Bus_Pd[24,2],Ugt[1,2],Ugt[2,2],Ugt[3,2],Ugt[4,2],Ugt[5,2],Ugt[6,2],Ugt[7,2],Ugt[8,2],Ugt[9,2],Ugt[10,2],Ugt[11,2],Ugt[12,2],Ugt[13,2],Ugt[14,2],Ugt[15,2],Ugt[16,2],Ugt[17,2],Ugt[18,2],Ugt[19,2],Ugt[20,2],Ugt[21,2],Ugt[22,2],Ugt[23,2],Ugt[24,2],Ugt[25,2],Ugt[26,2],Ugt[27,2],Ugt[28,2],Ugt[29,2],Ugt[30,2],Ugt[31,2],Ugt[32,2],Ugt[33,2],Bus_Pd[1,3],Bus_Pd[2,3],Bus_Pd[3,3],Bus_Pd[4,3],Bus_Pd[5,3],Bus_Pd[6,3],Bus_Pd[7,3],Bus_Pd[8,3],Bus_Pd[9,3],Bus_Pd[10,3],Bus_Pd[11,3],Bus_Pd[12,3],Bus_Pd[13,3],Bus_Pd[14,3],Bus_Pd[15,3],Bus_Pd[16,3],Bus_Pd[17,3],Bus_Pd[18,3],Bus_Pd[19,3],Bus_Pd[20,3],Bus_Pd[21,3],Bus_Pd[22,3],Bus_Pd[23,3],Bus_Pd[24,3],Ugt[1,3],Ugt[2,3],Ugt[3,3],Ugt[4,3],Ugt[5,3],Ugt[6,3],Ugt[7,3],Ugt[8,3],Ugt[9,3],Ugt[10,3],Ugt[11,3],Ugt[12,3],Ugt[13,3],Ugt[14,3],Ugt[15,3],Ugt[16,3],Ugt[17,3],Ugt[18,3],Ugt[19,3],Ugt[20,3],Ugt[21,3],Ugt[22,3],Ugt[23,3],Ugt[24,3],Ugt[25,3],Ugt[26,3],Ugt[27,3],Ugt[28,3],Ugt[29,3],Ugt[30,3],Ugt[31,3],Ugt[32,3],Ugt[33,3]>demandcommit24BusPrevPrd.txt;
+#	let prevprdsample := prevprdsample + 1;
+#	printf "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d \n",prevprdsample, Bus_Pd[1,3],Bus_Pd[2,3],Bus_Pd[3,3],Bus_Pd[4,3],Bus_Pd[5,3],Bus_Pd[6,3],Bus_Pd[7,3],Bus_Pd[8,3],Bus_Pd[9,3],Bus_Pd[10,3],Bus_Pd[11,3],Bus_Pd[12,3],Bus_Pd[13,3],Bus_Pd[14,3],Bus_Pd[15,3],Bus_Pd[16,3],Bus_Pd[17,3],Bus_Pd[18,3],Bus_Pd[19,3],Bus_Pd[20,3],Bus_Pd[21,3],Bus_Pd[22,3],Bus_Pd[23,3],Bus_Pd[24,3],Ugt[1,3],Ugt[2,3],Ugt[3,3],Ugt[4,3],Ugt[5,3],Ugt[6,3],Ugt[7,3],Ugt[8,3],Ugt[9,3],Ugt[10,3],Ugt[11,3],Ugt[12,3],Ugt[13,3],Ugt[14,3],Ugt[15,3],Ugt[16,3],Ugt[17,3],Ugt[18,3],Ugt[19,3],Ugt[20,3],Ugt[21,3],Ugt[22,3],Ugt[23,3],Ugt[24,3],Ugt[25,3],Ugt[26,3],Ugt[27,3],Ugt[28,3],Ugt[29,3],Ugt[30,3],Ugt[31,3],Ugt[32,3],Ugt[33,3],Bus_Pd[1,4],Bus_Pd[2,4],Bus_Pd[3,4],Bus_Pd[4,4],Bus_Pd[5,4],Bus_Pd[6,4],Bus_Pd[7,4],Bus_Pd[8,4],Bus_Pd[9,4],Bus_Pd[10,4],Bus_Pd[11,4],Bus_Pd[12,4],Bus_Pd[13,4],Bus_Pd[14,4],Bus_Pd[15,4],Bus_Pd[16,4],Bus_Pd[17,4],Bus_Pd[18,4],Bus_Pd[19,4],Bus_Pd[20,4],Bus_Pd[21,4],Bus_Pd[22,4],Bus_Pd[23,4],Bus_Pd[24,4],Ugt[1,4],Ugt[2,4],Ugt[3,4],Ugt[4,4],Ugt[5,4],Ugt[6,4],Ugt[7,4],Ugt[8,4],Ugt[9,4],Ugt[10,4],Ugt[11,4],Ugt[12,4],Ugt[13,4],Ugt[14,4],Ugt[15,4],Ugt[16,4],Ugt[17,4],Ugt[18,4],Ugt[19,4],Ugt[20,4],Ugt[21,4],Ugt[22,4],Ugt[23,4],Ugt[24,4],Ugt[25,4],Ugt[26,4],Ugt[27,4],Ugt[28,4],Ugt[29,4],Ugt[30,4],Ugt[31,4],Ugt[32,4],Ugt[33,4]>demandcommit24BusPrevPrd.txt;
+#	let prevprdsample := prevprdsample + 1;
+	if allprdsample = 1801 then
+	{
+		break;
+	}
+}
+
+display _total_solve_elapsed_time;

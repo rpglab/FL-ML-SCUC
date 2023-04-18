@@ -1,0 +1,484 @@
+## Author: Arun Ramesh, University of Houston. https://rpglab.github.io/people/Arun-Venkatesh-Ramesh/
+#
+## Source webpage: https://rpglab.github.io/resources/FL-ML-R-SCUC_Python/
+#
+## If you use any codes/data here for your work, please cite the following paper: 
+#       Arun Venkatesh Ramesh and Xingpeng Li, “Feasibility Layer Aided Machine Learning Approach for Day-Ahead Operations”, 
+#       IEEE Transactions on Power Systems, Apr. 2023.
+
+reset;
+
+printf "\n\n\n##############  ExtensiveStochasticUC_Verify_Procedure5 program starts here ##############\n\n";
+
+param M; 
+#let M:= 299;#24Bus old
+#let M:= 359;#24Bus
+let M:= 339;#24Bus Renewable
+#let M:= 240;#73Bus old
+#let M:= 325;#73Bus
+#let M:= 255;#73Bus
+param nG;
+let nG := 33;#24Bus 
+#let nG := 99;#73Bus 
+#let nG := 327;#Polish 
+param nT;
+let nT := 24;
+param nB;
+let nB := 24;#24Bus;
+#let nB := 73;#73Bus;
+#let nB := 2383;#Polish;
+param nS;
+let nS := 3;
+
+param PHighTAON;
+let PHighTAON := 0.98;
+param PHighT;
+let PHighT := 0.92;
+param PLogT;
+let PLogT := 0.50;
+param PLowT;
+let PLowT := 0.08;
+param PLowTAOF;
+let PLowTAOF := 0.02;
+
+param x_test_Bus_Pd {1..M,1..(nS*nB*nT)};
+param Ugt_Predict {1..M,1..(nG*nT)};
+param Ugt_Predict_m {1..nG,1..nT};
+param Ugt_PredictLayer {1..M,1..nG,1..nT};
+param Vgt_PredictLayer {1..M,1..nG,1..nT};
+param Ugt_Prob {1..M,1..(nG*nT)};
+param g_AlwaysON_Pred {1..M,1..nG};
+param g_AlwaysOFF_Pred {1..M,1..nG};
+param g_AlwaysON_Act {1..M,1..nG};
+param g_AlwaysOFF_Act {1..M,1..nG};
+param g_HasFixT_Pred {1..M,1..nG}; ####
+param Ugt_Actual {1..M,1..(nG*nT)};
+param Ugt_Predict_Prop{1..M,1..(nG*nT)};
+param Ugt_temp {1..M,1..nG,1..nT};
+param genIter;
+param layerT { 1..M};
+param layerTMax { 1..M};
+param problemT;
+
+param genFix {1..M,1..nG,1..nT};
+param genFlex {1..M,1..nG,1..nT};
+#param genFix {1..nG,1..nT};
+#param genFlex {1..nG,1..nT};
+#param genFix {1..nT};
+#param genFlex {1..nT};
+param allprdsample;
+let allprdsample := 1;
+
+param starttime; 
+param stoptime;
+
+param testflag;
+let testflag := 1;
+
+param counter;
+
+model OriginalFormulationStochastic.mod;
+#data dataFile24BusAll_3Scn_VerifyProcedure_MLTR.dat;
+data dataFile24BusAll_3Scn_VerifyProcedure_SKLRN.dat;
+#data dataFile24BusAllMultiMinUpNMinDn_verification.dat;
+#data dataFile24BusAllMultiMinUpNMinDn_verificationSklrn.dat;
+#data dataFile73BusAllMultiMinUpNMinDn_verification.dat;
+#data dataFile24BusAllMultiMinUpNMinDnBusCorr_verification.dat;
+#data dataFile73BusAllMultiMinUpNMinDnBusCorr_verification.dat;
+#data dataFile118BusAllMultiMinUpNMinDnBusCorr_verification.dat;
+#data dataFileActiveSG500BusAll_verification.dat;
+#data dataFilePolishAll_verification.dat;
+#data dataFilePolishAll_newGenInfoNewLD_BusCorr_verification.dat;
+
+
+option solver gurobi;
+option gurobi_options('mipgap=0.01 timelim=2000 bestbound 1');
+option show_stats 1;
+option presolve 0;
+#option presolve_eps 2;
+#option method 1;
+#option rays 3;
+suffix bestbound OUT;
+#option warmstart 4;
+
+#option solver cplex;
+#option cplex_options 'mipgap=0.01 timelimit = 100';
+
+# define problems
+
+/*
+problem Model1:	Ugt_mfPlus, Ugt_mfMinus, Vgt_mf, 
+					tUP_PP, tUP2_PP, tDN_PP, tDN2_PP, SUSD_PP, SUSD2_PP, 
+					MeetDmd, MeetMinDmd,
+					Pred_PP,
+					Obj1;
+
+problem Model2:	Ugt_mfPlus2, Ugt_mfMinus2, Vgt_mf2, 
+					tUP_PP2, tUP2_PP2, tDN_PP2, tDN2_PP2, SUSD_PP2, SUSD2_PP2, 
+					Pred_PP2,
+					Obj2;
+					
+problem Model3:	Ugt_mf3, Vgt_mf3, 
+					tUP_PP3, tUP2_PP3, tDN_PP3, tDN2_PP3, SUSD_PP3, SUSD2_PP3, absolute1, absolute2, 
+					Obj3;
+*/
+problem Extensive: bus_angle, line_flow, gen_supply, reserve, Ugt, Vgt, #genslackInc, genslackDec,
+                PGen1, unitReserve2, unitReserve1, systemReserve, 
+				HR_RampUP, HR_RampDN, HR_RampUP2, HR_RampDN2, 
+				FacetUP, FacetUP2, FacetDN, FacetDN2, 
+				SUSD, SUSD2, 
+				Line_FlowEq1, Thermal2, Thermal1,
+				PowerBal,
+				slack,
+			    M_COST;
+
+for {m in 1..M}
+{
+	let {i in GEND} g_AlwaysON_Pred [m,i] := 1;
+	let {i in GEND} g_AlwaysOFF_Pred [m,i] := 1;
+	#let {i in GEND} g_AlwaysON_Act [m,i] := 1;
+	#let {i in GEND} g_AlwaysOFF_Act [m,i] := 1;
+	#display {j in 1..3, i in GEND} g_AlwaysON_Pred[j,i];
+	for {g in GEND}
+	{
+		for {t in LOAD}
+		{
+			if (Ugt_Prob[m,(t-1)*nG+g] <= PHighTAON && g_AlwaysON_Pred[m,g] == 1) then let g_AlwaysON_Pred [m,g] := 0;
+			if (Ugt_Prob[m,(t-1)*nG+g] >= PLowTAOF && g_AlwaysOFF_Pred[m,g] == 1) then let g_AlwaysOFF_Pred [m,g] := 0;
+		
+		}
+	}
+}		 		
+
+for {m in 1..M, g in GEND, t in LOAD}
+{
+	let genFix [m,g,t] := 0;
+	let genFlex [m,g,t] := 0;
+	let g_HasFixT_Pred[m,g] := 0;
+}
+/*
+for {m in 1..M}
+{
+
+	for {t in LOAD}
+	{
+		for {n in BUS}
+		{
+			let Bus_Pd[n,t] := x_test_Bus_Pd[m,  (((t-1)*nB)+n)]*MBase;
+		}
+		
+		for{ g in GEND}
+		{
+			if Ugt_Prob[m, (((t-1)*nG)+g)] >= PLogT then
+			{
+				let Ugt_Predict_m[g,t] := 1; 
+			}
+			else
+			{
+				let Ugt_Predict_m[g,t] := 0; 
+			};
+			
+			if g_AlwaysON_Pred[m, g] != 1 && g_AlwaysOFF_Pred[m, g] != 1 then
+			{
+			
+				if  Ugt_Prob[m, (((t-1)*nG)+g)] >= PHighT || Ugt_Prob[m, (((t-1)*nG)+g)] <= PLowT then
+				{
+					let genFix[m,g,t] := 1;	
+					let g_HasFixT_Pred[m,g] := 1;
+				}
+				else
+				{
+					let genFlex[m,g,t] := 1;
+				}
+			}
+			#####
+			else if g_AlwaysON_Pred[m, g] == 1 || g_AlwaysOFF_Pred[m, g] == 1 then
+			{
+				let genFix[m,g,t] := 1;
+			}
+			####
+				
+		}
+	}
+	
+	/*
+	let layerTMax[m] := 0;
+	let layerT[m] := 0;
+	
+	for {t in LOAD, g in GEND} 
+	{
+		let Ugt_mfPlus[g,t] := 0;
+		let Ugt_mfMinus[g,t] := 0; 
+		let Vgt_mf[g,t] := 0; 
+	} 
+	
+	solve Model1;
+	let layerTMax[m] := _solve_elapsed_time;
+	let layerT[m] := _solve_elapsed_time;
+	#printf "%d, %f\n", Obj1, _solve_elapsed_time >procedure3_50%P_layertime_newConstraint.csv;
+	for {t in LOAD, g in GEND} 
+	{
+		#if g_AlwaysON_Pred[m, g] != 1 && g_AlwaysOFF_Pred[m, g] != 1 then
+		#{
+			if Ugt_mfPlus[g,t] != 0 || Ugt_mfMinus[g,t] != 0 then
+			{
+				let Ugt_Predict_m[g,t] := Ugt_mfPlus[g,t] - Ugt_mfMinus[g,t]  + Ugt_Predict_m[g,t];
+				let genFix[m,g,t] := 0;
+				let genFlex[m,g,t] := 1;
+				let g_HasFixT_Pred[m,g] := 0;
+			}
+		#}
+		let Vgt_PredictLayer[m,g,t] := Vgt_mf[g,t];
+	}
+	#*/
+	
+	/*
+	let layerTMax[m] := 0;
+	let layerT[m] := 0;
+	for{g in GEND}
+	{
+		let genIter := g;
+			
+		if g_AlwaysON_Pred[m, g] != 1 && g_AlwaysOFF_Pred[m, g] != 1 then
+		{
+			#/
+			for {k in LOAD} 
+			{
+				let Ugt_mfPlus2[k] := 0;
+				let Ugt_mfMinus2[k] := 0; 
+				let Vgt_mf2[k] := 0; 
+			} 
+			solve Model2;
+			let layerT[m] := layerT[m] + _solve_elapsed_time;
+			if layerTMax[m] <= _solve_elapsed_time then let layerTMax[m] := _solve_elapsed_time;  
+			for {t in LOAD }
+			{
+				if  genFix[m,genIter,t] = 1 then
+				{
+					if Ugt_mfPlus2[t] != 0 || Ugt_mfMinus2[t] != 0 then
+					{	
+						let genFix[m,genIter,t] := 0;
+						let genFlex[m,genIter,t] := 1;
+						let Ugt_Predict_m[genIter,t] := Ugt_Predict_m[genIter,t] + Ugt_mfPlus2[t] - Ugt_mfMinus2[t];
+						let g_HasFixT_Pred[m,g] := 0;
+					}
+				}
+			}
+			#/
+				
+				
+			#/
+			for {k in LOAD} 
+			{
+				let Ugt_mf3[k] := 0;
+				let Vgt_mf3[k] := 0; 
+			} 
+			solve Model3;
+			let layerT[m] := layerT[m] + _solve_elapsed_time;
+			if layerTMax[m] <= _solve_elapsed_time then let layerTMax[m] := _solve_elapsed_time;
+			for {t in LOAD }
+			{
+				if  genFix[m,genIter,t] = 1 then
+				{
+					if Ugt_mf3[t] != Ugt_Predict_m[genIter,t] then
+					{	
+						let genFix[m,genIter,t] := 0;
+						let genFlex[m,genIter,t] := 1;
+						let Ugt_Predict_m[genIter,t] := Ugt_mf3[t];
+						let g_HasFixT_Pred[m,g] := 0;
+					}
+				}
+			}
+			#/
+		}
+	}
+	#/
+	
+	for{g in GEND, t in LOAD}
+	{
+		let Ugt_PredictLayer[m,g,t] := Ugt_Predict_m[g,t];
+		#let Vgt_PredictLayer[m,g,t] := Vgt_mf[g,t];
+	}
+}
+#*/
+option print_separator ",";
+
+repeat 
+{
+	/*
+	# Base method
+	
+	# read Bus Pd Values from python output array	
+	for {s in SCN}
+	{
+		for {t in LOAD}
+		{
+			for {n in BUS}
+			{
+				#let Bus_Pd[n,t,1] := x_test_Bus_Pd[allprdsample,  (((t-1)*nB) + n)]*MBase;
+				#let Bus_Pd[n,t,2] := x_test_Bus_Pd[allprdsample,  (nB*nT + ((t-1)*nB) + n)]*MBase;
+				#let Bus_Pd[n,t,3] := x_test_Bus_Pd[allprdsample,  (2*nB*nT + ((t-1)*nB) + n)]*MBase;
+				let Bus_Pd[n,t,s] := x_test_Bus_Pd[allprdsample,  (((s-1)*nB*nT) + ((t-1)*nB) + n)]*MBase;
+				
+			}
+		}
+	}
+		
+	# Always init 0!!!!!!!!!!!!!!!!!!!!! Slower
+	for {s in SCN, t in LOAD}
+	{
+		for {n in BUS}
+		{
+			let bus_angle[n,t,s] := 0;
+		}
+		for {j in BRANCH}
+		{
+			let line_flow[j,t,s] := 0;
+		}
+		for { g in GEND}
+		{
+			let Ugt[g,t] := 0;
+			let Vgt[g,t] := 0;
+			let gen_supply[g,t,s] := 0;
+			let reserve[g,t,s] := 0;
+		}
+	}
+	
+	let starttime := time();
+	solve Extensive;
+	let stoptime := time();
+	printf "%s, %d, %f, %f, %d\n", solve_result, solve_result_num, M_COST, _solve_elapsed_time, stoptime-starttime>base_24Bus_NoPresolve_Init0_1e-2MIPGAP_Renewable.csv; #, ((M_COST - M_COST.bestbound)/M_COST)
+	#display M_COST.message>baseMsg_presolve_wo0.txt;
+	#if solve_result_num == 0 || solve_result_num == 2 then display allprdsample,((M_COST - M_COST.bestbound)/M_COST) >baseGap_presolve_wo0.csv;
+	#*/
+	
+	#/*
+	# procedure 5: Dual Probability post-processing AlwaysON p(y=1)>0.9, Always off p(y=1)<0.1, let ug = 1 p(y=1)>=0.5 and let ug = 0 for p(y=1)<0.5
+	
+	for {t in LOAD}
+	{
+		for {s in SCN}
+		{
+			for {n in BUS}
+			{
+				let Bus_Pd[n,t,s] := x_test_Bus_Pd[allprdsample,  (((s-1)*nB*nT) + ((t-1)*nB) + n)]*MBase;
+			}
+		}
+		#/*
+		for{ g in GEND}
+		{
+			if Ugt_Prob[allprdsample, (((t-1)*nG)+g)] >= PLogT then
+			{
+				let Ugt_Predict_m[g,t] := 1; 
+			}
+			else
+			{
+				let Ugt_Predict_m[g,t] := 0; 
+			};
+			
+			if g_AlwaysON_Pred[allprdsample, g] != 1 && g_AlwaysOFF_Pred[allprdsample, g] != 1 then
+			{
+			
+				if  Ugt_Prob[allprdsample, (((t-1)*nG)+g)] >= PHighT || Ugt_Prob[allprdsample, (((t-1)*nG)+g)] <= PLowT then
+				{
+					let genFix[allprdsample,g,t] := 1;	
+					let g_HasFixT_Pred[allprdsample,g] := 1;
+				}
+				else
+				{
+					let genFlex[allprdsample,g,t] := 1;
+				}
+			}
+		}
+		#/
+	}
+	
+	let layerTMax[allprdsample] := 0;
+	let layerT[allprdsample] := 0;
+	
+	
+	let counter := 0;
+	for {t in LOAD}
+	{
+		#for {n in BUS}
+		#{
+		#	let bus_angle[n,t] := 0;
+		#}
+		#for {j in BRANCH}
+		#{
+		#	let line_flow[j,t] := 0;
+		#}
+		for { g in GEND}
+		{		
+			#/
+			if  g_AlwaysON_Pred[allprdsample, g] = 1 && genFix[allprdsample,g,t] = 1 then
+			{
+				let counter := counter + 1;
+				fix Ugt[g,t] := 1; 
+			}
+			else if g_AlwaysOFF_Pred[allprdsample, g] = 1 && genFix[allprdsample,g,t] = 1 then
+			{
+				#let counter := counter + 1;
+				#let Ugt[g,t] := 0;
+				fix Ugt[g,t] := 0;
+			}
+			else
+			{
+				#if g_HasFixT_Pred[allprdsample,g] = 1 then
+				#{
+					if genFix[allprdsample,g,t] = 1 then 
+					{
+						#if Ugt_PredictLayer[allprdsample,g,t] = 1 then 
+						#{
+						let counter := counter + 1;
+						fix Ugt[g,t] := Ugt_Predict_m[g,t];
+						#fix Ugt[g,t] := Ugt_PredictLayer[allprdsample,g,t];	
+						#}
+						#else
+						#{
+						#	let Ugt[g,t] := Ugt_PredictLayer[allprdsample,g,t];
+						#}
+					}
+					else if genFlex[allprdsample,g,t] = 1 then 
+					{
+						let Ugt[g,t] := Ugt_Predict_m[g,t];
+						#let Ugt[g,t] := Ugt_PredictLayer[allprdsample,g,t];
+					}
+				#}
+				else 
+				{
+					let Ugt[g,t] := Ugt_Predict_m[g,t];
+					#let Ugt[g,t] := Ugt_PredictLayer[allprdsample,g,t];
+				}
+			}
+			#/
+			
+			#let Vgt[g,t] := Vgt_PredictLayer[allprdsample,g,t]; 
+			
+			#let gen_supply[g,t] := 0;
+			#let reserve[g,t] := 0;
+		}
+	}
+	solve Extensive;
+	let problemT := _solve_elapsed_time;
+	printf "%s, %d, %f, %f, %f, %f, %f, %d\n", solve_result, solve_result_num, M_COST, (layerTMax[allprdsample]+problemT), problemT, layerTMax[allprdsample], layerT[allprdsample], counter >procedure5NoLayer_24BusRenewable_NoFlag_onlyOn_DualProb_PAON98e-2PAOF02e-2PLog50e-2PHigh92e-2Plow08e-2_NoPresolve_LayerProbSeperated.csv;
+	
+	for{t in LOAD, g in GEND}
+	{	
+	
+		unfix Ugt[g,t]; 
+		let Ugt[g,t] := 0;
+	}
+	
+	#*/
+	
+	let allprdsample := allprdsample + 1;
+	if allprdsample == (M+1) then
+	{
+		break;
+	}
+}
+
+display _total_solve_elapsed_time;
+
+
